@@ -1,17 +1,20 @@
 package chmap
 
 import (
+	"github.com/mitchellh/hashstructure/v2"
+	"hash/fnv"
 	"sync"
 )
 
 const defaultBucketCount = 16
 
-type Hasher func(interface{}) int
+type Hasher interface {
+	Hash() uint64
+}
 
 type ConcurrentHashMap struct {
 	bucketCount int
 	buckets     []*Bucket
-	hasher      Hasher
 }
 
 type Bucket struct {
@@ -19,8 +22,7 @@ type Bucket struct {
 	internal map[interface{}]interface{}
 }
 
-func New(hasher Hasher) (chm ConcurrentHashMap) {
-	chm.hasher = hasher
+func New() (chm ConcurrentHashMap) {
 	chm.bucketCount = defaultBucketCount
 	chm.buckets = make([]*Bucket, defaultBucketCount)
 	for i := 0; i < defaultBucketCount; i++ {
@@ -82,6 +84,20 @@ func (m *ConcurrentHashMap) Clear() {
 }
 
 func (m *ConcurrentHashMap) getBucket(key interface{}) *Bucket {
-	hash := m.hasher(key)
-	return m.buckets[hash%m.bucketCount]
+	hash := getHash(key)
+	return m.buckets[int(hash)&m.bucketCount]
+}
+
+func getHash(key interface{}) (hash uint64) {
+	switch k := key.(type) {
+	case Hasher:
+		hash = k.Hash()
+	case string:
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(k))
+		hash = uint64(h.Sum32())
+	default:
+		hash, _ = hashstructure.Hash(key, hashstructure.FormatV2, nil)
+	}
+	return
 }
