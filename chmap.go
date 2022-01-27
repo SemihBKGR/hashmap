@@ -1,7 +1,6 @@
 package chmap
 
 import (
-	"fmt"
 	"hash/fnv"
 	"sync"
 )
@@ -39,7 +38,6 @@ func New() (chm ConcurrentHashMap) {
 
 func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 	h := hash(key)
-	fmt.Println(h)
 	b := m.buckets[h%m.capacity]
 	b.Lock()
 	defer b.Unlock()
@@ -66,19 +64,53 @@ func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 
 func (m *ConcurrentHashMap) Get(key string) (val interface{}, ok bool) {
 	h := hash(key)
-	fmt.Println(h)
 	b := m.buckets[h%m.capacity]
 	b.RLock()
 	defer b.RUnlock()
 	n := b.node
 	for n != nil {
 		if n.key == key {
-			fmt.Println("found")
 			return n.value, true
 		}
 		n = n.next
 	}
-	fmt.Println("not found")
+	return nil, false
+}
+
+func (m *ConcurrentHashMap) Contains(key string) bool {
+	h := hash(key)
+	b := m.buckets[h%m.capacity]
+	b.RLock()
+	defer b.RUnlock()
+	n := b.node
+	for n != nil {
+		if n.key == key {
+			return true
+		}
+		n = n.next
+	}
+	return false
+}
+
+func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
+	h := hash(key)
+	b := m.buckets[h%m.capacity]
+	b.RLock()
+	defer b.RUnlock()
+	n := b.node
+	var pn *node
+	for n != nil {
+		if n.key == key {
+			if pn == nil {
+				b.node = nil
+				return n.value, true
+			}
+			pn.next = n.next
+			return n.value, true
+		}
+		pn = n
+		n = n.next
+	}
 	return nil, false
 }
 
