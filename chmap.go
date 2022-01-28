@@ -7,17 +7,20 @@ import (
 
 const loadFactor = 0.75
 const defaultCapacity = 16
+const treeThreshold = 16
 
 type node struct {
 	hash  uint32
 	key   string
 	value interface{}
-	next  *node
+	right *node
+	left  *node
 }
 
 type bucket struct {
 	sync.RWMutex
 	node *node
+	tree bool
 }
 
 type ConcurrentHashMap struct {
@@ -41,23 +44,32 @@ func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 	b := m.buckets[h%m.capacity]
 	b.Lock()
 	defer b.Unlock()
-	if b.node == nil {
-		b.node = &node{
-			hash:  h,
-			key:   key,
-			value: value,
-			next:  nil,
+	n := &node{
+		hash:  h,
+		key:   key,
+		value: value,
+		right: nil,
+	}
+	if b.tree {
+		l := findLeaf(b.node, h)
+		if l == nil {
+			b.node = n
+		} else {
+			if l.hash > h {
+				l.left = n
+			} else {
+				l.right = n
+			}
 		}
 	} else {
-		n := b.node
-		for n.next != nil {
-			n = n.next
-		}
-		n.next = &node{
-			hash:  h,
-			key:   key,
-			value: value,
-			next:  nil,
+		t, i := findTail(b.node)
+		if t == nil {
+			b.node = n
+		} else {
+			t.right = n
+			if i >= treeThreshold {
+				//TODO: make linked list tree
+			}
 		}
 	}
 }
@@ -72,7 +84,11 @@ func (m *ConcurrentHashMap) Get(key string) (val interface{}, ok bool) {
 		if n.key == key {
 			return n.value, true
 		}
-		n = n.next
+		if b.tree && n.hash > h {
+			n = n.left
+		} else {
+			n = n.right
+		}
 	}
 	return nil, false
 }
@@ -87,7 +103,11 @@ func (m *ConcurrentHashMap) Contains(key string) bool {
 		if n.key == key {
 			return true
 		}
-		n = n.next
+		if b.tree && n.hash > h {
+			n = n.left
+		} else {
+			n = n.right
+		}
 	}
 	return false
 }
@@ -97,25 +117,98 @@ func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
 	b := m.buckets[h%m.capacity]
 	b.RLock()
 	defer b.RUnlock()
-	n := b.node
-	var pn *node
-	for n != nil {
-		if n.key == key {
-			if pn == nil {
-				b.node = nil
+	if b.tree {
+		n := b.node
+		var pn *node
+		for n != nil {
+			if n.key == key {
+				if n.left != nil {
+					n = n.left
+					var ipn *node
+					for {
+						if n.right != nil {
+							ipn = n
+							n = n.right
+						} else if n.left != nil {
+							ipn = n
+							n = n.left
+						} else {
+							break
+						}
+					}
+					pn.value = n.value
+					if ipn.left == n {
+						ipn.left = nil
+					} else {
+						ipn.right = nil
+					}
+				} else if n.right != nil {
+
+				} else {
+					if pn.left == n {
+						pn.left = nil
+					} else {
+						pn.right = nil
+					}
+				}
+			}
+			pn = n
+			if n.hash > h {
+				n = n.left
+			} else {
+				n = n.right
+			}
+		}
+		return nil, false
+	} else {
+		n := b.node
+		var pn *node
+		for n != nil {
+			if n.key == key {
+				if pn == nil {
+					b.node = nil
+					return n.value, true
+				}
+				pn.right = n.right
 				return n.value, true
 			}
-			pn.next = n.next
-			return n.value, true
+			pn = n
+			n = n.right
 		}
-		pn = n
-		n = n.next
+		return nil, false
 	}
-	return nil, false
 }
 
 func hash(key string) uint32 {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(key))
 	return h.Sum32()
+}
+
+func findTail(n *node) (*node, int) {
+	if n == nil {
+		return nil, 0
+	}
+	i := 1
+	for n.right != nil {
+		i++
+		n = n.right
+	}
+	return n, i
+}
+
+func findLeaf(n *node, hash uint32) *node {
+	if n == nil {
+		return nil
+	}
+	var l *node
+	for n != nil {
+		l = n
+		if n.hash > hash {
+			n = n.left
+		} else {
+			n = n.right
+		}
+	}
+	return l
 }
