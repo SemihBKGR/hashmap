@@ -212,3 +212,67 @@ func findLeaf(n *node, hash uint32) *node {
 	}
 	return l
 }
+
+func makeTree(head *node) (root *node) {
+	nodes := collect(head)
+	sort(nodes)
+	ri := len(nodes) / 2
+	root = nodes[ri]
+	split(nodes[:ri], root, true)
+	split(nodes[ri+1:], root, false)
+	return
+}
+
+func split(nodes []*node, root *node, left bool) {
+	l := len(nodes)
+	if l == 0 {
+		if left {
+			root.left = nil
+		} else {
+			root.right = nil
+		}
+		return
+	}
+	ri := len(nodes) / 2
+	if left {
+		root.left = nodes[ri]
+	} else {
+		root.right = nodes[ri]
+	}
+	split(nodes[:ri], nodes[ri], true)
+	split(nodes[ri+1:], nodes[ri], false)
+}
+
+func collect(head *node) []*node {
+	s := size(head)
+	ns := make([]*node, s)
+	n := head
+	for i := 0; i < s; i++ {
+		ns[i] = n
+		n = n.right
+	}
+	return ns
+}
+
+func size(head *node) int {
+	if head == nil {
+		return 0
+	}
+	n := head
+	s := 0
+	for n != nil {
+		s++
+		n = n.right
+	}
+	return s
+}
+
+func sort(nodes []*node) {
+	for i := 0; i < len(nodes)-1; i++ {
+		for j := 0; j < len(nodes)-1-i; j++ {
+			if nodes[j].hash > nodes[j+1].hash {
+				nodes[j], nodes[j+1] = nodes[j+1], nodes[j]
+			}
+		}
+	}
+}
