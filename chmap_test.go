@@ -1,7 +1,6 @@
 package chmap
 
 import (
-	"fmt"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -11,19 +10,49 @@ func TestNew(t *testing.T) {
 	_ = New()
 }
 
+func TestNewWithCap(t *testing.T) {
+	_, err := NewWithCap(32)
+	if err != nil {
+		t.FailNow()
+	}
+}
+
+func TestNewWithCap2(t *testing.T) {
+	_, err := NewWithCap(0)
+	if err == nil {
+		t.FailNow()
+	}
+}
+
+func TestNewWithCap3(t *testing.T) {
+	_, err := NewWithCap(-1)
+	if err == nil {
+		t.FailNow()
+	}
+}
+
 func TestConcurrentHashMap_Put(t *testing.T) {
 	m := New()
-	for i := 0; i < 1_000; i++ {
+	for i := 0; i < 100_000; i++ {
+		m.Put(strconv.Itoa(i), i)
+	}
+	for i := 50_000; i < 150_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
 }
 
 func TestConcurrentHashMap_Get(t *testing.T) {
 	m := New()
-	for i := 0; i < 1_000; i++ {
-		m.Put(strconv.Itoa(i), i)
-		val, ok := m.Get(strconv.Itoa(i))
-		if !ok || val != i {
+	for i := 0; i < 100_000; i++ {
+		k := strconv.Itoa(i)
+		m.Put(k, i)
+		if v, ok := m.Get(k); !ok || v != i {
+			t.FailNow()
+		}
+	}
+	for i := 100_000; i < 150_000; i++ {
+		k := strconv.Itoa(i)
+		if _, ok := m.Get(k); ok {
 			t.FailNow()
 		}
 	}
@@ -31,10 +60,16 @@ func TestConcurrentHashMap_Get(t *testing.T) {
 
 func TestConcurrentHashMap_Contains(t *testing.T) {
 	m := New()
-	for i := 0; i < 1_000; i++ {
-		m.Put(strconv.Itoa(i), i)
-		ok := m.Contains(strconv.Itoa(i))
-		if !ok {
+	for i := 0; i < 100_000; i++ {
+		k := strconv.Itoa(i)
+		m.Put(k, i)
+		if ok := m.Contains(k); !ok {
+			t.FailNow()
+		}
+	}
+	for i := 100_000; i < 150_000; i++ {
+		k := strconv.Itoa(i)
+		if ok := m.Contains(k); ok {
 			t.FailNow()
 		}
 	}
@@ -42,16 +77,37 @@ func TestConcurrentHashMap_Contains(t *testing.T) {
 
 func TestConcurrentHashMap_Remove(t *testing.T) {
 	m := New()
-	for i := 0; i < 1_000; i++ {
+	for i := 0; i < 100_000; i++ {
+		k := strconv.Itoa(i)
+		m.Put(k, i)
+		if val, ok := m.Remove(k); !ok || val != i {
+			t.FailNow()
+		}
+		if ok := m.Contains(strconv.Itoa(i)); ok {
+			t.FailNow()
+		}
+	}
+	for i := 100_000; i < 150_000; i++ {
+		k := strconv.Itoa(i)
+		if _, ok := m.Remove(k); ok {
+			t.FailNow()
+		}
+	}
+}
+
+func TestConcurrentHashMap_Size(t *testing.T) {
+	m := New()
+	for i := 0; i < 100_000; i++ {
 		m.Put(strconv.Itoa(i), i)
-		val, ok := m.Remove(strconv.Itoa(i))
-		if !ok || val != i {
-			t.FailNow()
-		}
-		ok = m.Contains(strconv.Itoa(i))
-		if ok {
-			t.FailNow()
-		}
+	}
+	if m.Size() != 100_000 {
+		t.FailNow()
+	}
+	for i := 50_000; i < 150_000; i++ {
+		m.Put(strconv.Itoa(i), i)
+	}
+	if m.Size() != 150_000 {
+		t.FailNow()
 	}
 }
 
@@ -67,47 +123,20 @@ func TestMakeTree(t *testing.T) {
 		}
 		n = n.right
 	}
-	printHashOfNodeLink(head)
-	printSize(head)
 	root := makeTree(head)
-	if !validTree(root) {
+	if !isTreeAsExpected(root) {
 		t.FailNow()
 	}
-
 }
 
-func printHashOfNodeLink(head *node) {
-	fmt.Print("[")
-	n := head
-	for {
-		fmt.Print(n.hash)
-		n = n.right
-		if n == nil {
-			break
-		}
-		fmt.Print(",")
-	}
-	fmt.Println("]")
-}
-
-func printSize(head *node) {
-	n := head
-	s := 0
-	for n != nil {
-		s++
-		n = n.right
-	}
-	fmt.Printf("Size: %d\n", s)
-}
-
-func validTree(root *node) bool {
+func isTreeAsExpected(root *node) bool {
 	if root == nil {
 		return true
 	}
-	return validTreeNode(root) && validTree(root.left) && validTree(root.right)
+	return isTreeNodeAsExpected(root) && isTreeAsExpected(root.left) && isTreeAsExpected(root.right)
 }
 
-func validTreeNode(n *node) bool {
+func isTreeNodeAsExpected(n *node) bool {
 	if n == nil {
 		return true
 	} else {

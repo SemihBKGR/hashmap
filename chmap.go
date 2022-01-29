@@ -35,7 +35,7 @@ func New() ConcurrentHashMap {
 }
 
 func NewWithCap(capacity int) (chm ConcurrentHashMap, err error) {
-	if capacity < 0 {
+	if capacity <= 0 {
 		err = errors.New("capacity must be positive value")
 		return
 	}
@@ -101,6 +101,14 @@ func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
 	} else {
 		return nil, false
 	}
+}
+
+func (m *ConcurrentHashMap) Size() int {
+	size := 0
+	for _, b := range m.table {
+		size += b.size
+	}
+	return size
 }
 
 func hash(key string) uint32 {
