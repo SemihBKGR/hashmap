@@ -1,3 +1,4 @@
+// Package chmap concurrent hash map implemention
 package chmap
 
 import (
@@ -24,16 +25,19 @@ type bucket struct {
 	size int
 }
 
+// ConcurrentHashMap string:any map
 type ConcurrentHashMap struct {
 	capacity uint32
 	table    []*bucket
 }
 
+// New returns ConcurrentHashMap with default capacity
 func New() ConcurrentHashMap {
 	chm, _ := NewWithCap(defaultCapacity)
 	return chm
 }
 
+// NewWithCap returns ConcurrentHashMap with given capacity
 func NewWithCap(capacity int) (chm ConcurrentHashMap, err error) {
 	if capacity <= 0 {
 		err = errors.New("capacity must be positive value")
@@ -47,6 +51,7 @@ func NewWithCap(capacity int) (chm ConcurrentHashMap, err error) {
 	return
 }
 
+// Put maps given key to given value
 func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -55,6 +60,7 @@ func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 	b.Unlock()
 }
 
+// Get returns mapped value fo given key
 func (m *ConcurrentHashMap) Get(key string) (interface{}, bool) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -68,6 +74,8 @@ func (m *ConcurrentHashMap) Get(key string) (interface{}, bool) {
 	}
 }
 
+// GetOrDefault returns the value mapped by the given key
+// If there isn't any mapping by given key, it returns given defaul value
 func (m *ConcurrentHashMap) GetOrDefault(key string, defVal interface{}) interface{} {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -81,6 +89,7 @@ func (m *ConcurrentHashMap) GetOrDefault(key string, defVal interface{}) interfa
 	}
 }
 
+// Contains returns if given key is mapped or not
 func (m *ConcurrentHashMap) Contains(key string) bool {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -90,6 +99,7 @@ func (m *ConcurrentHashMap) Contains(key string) bool {
 	return n != nil
 }
 
+// Remove removes entry by given key
 func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -103,6 +113,7 @@ func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
 	}
 }
 
+// Size returns size of the map
 func (m *ConcurrentHashMap) Size() int {
 	size := 0
 	for _, b := range m.table {
@@ -117,23 +128,7 @@ func hash(key string) uint32 {
 	return h.Sum32()
 }
 
-func findLeaf(n *node, hash uint32) *node {
-	if n == nil {
-		return nil
-	}
-	var l *node
-	for n != nil {
-		l = n
-		if n.hash > hash {
-			n = n.left
-		} else {
-			n = n.right
-		}
-	}
-	return l
-}
-
-func makeTree(head *node) (root *node) {
+func treeify(head *node) (root *node) {
 	nodes := collect(head)
 	sort(nodes)
 	ri := len(nodes) / 2
@@ -175,9 +170,6 @@ func collect(head *node) []*node {
 }
 
 func size(head *node) int {
-	if head == nil {
-		return 0
-	}
 	n := head
 	s := 0
 	for n != nil {
@@ -253,7 +245,7 @@ func (b *bucket) put(h uint32, k string, v interface{}) {
 			b.node = nn
 			b.size++
 			if b.size >= treeThreshold {
-				makeTree(b.node)
+				treeify(b.node)
 				b.tree = true
 			}
 		}

@@ -58,6 +58,23 @@ func TestConcurrentHashMap_Get(t *testing.T) {
 	}
 }
 
+func TestConcurrentHashMap_GetOrDefault(t *testing.T) {
+	m := New()
+	for i := 0; i < 100_000; i++ {
+		k := strconv.Itoa(i)
+		m.Put(k, i)
+		if v := m.GetOrDefault(k, nil); v != i {
+			t.FailNow()
+		}
+	}
+	for i := 100_000; i < 150_000; i++ {
+		k := strconv.Itoa(i)
+		if v := m.GetOrDefault(k, nil); v != nil {
+			t.FailNow()
+		}
+	}
+}
+
 func TestConcurrentHashMap_Contains(t *testing.T) {
 	m := New()
 	for i := 0; i < 100_000; i++ {
@@ -111,7 +128,7 @@ func TestConcurrentHashMap_Size(t *testing.T) {
 	}
 }
 
-func TestMakeTree(t *testing.T) {
+func TestTreeify(t *testing.T) {
 	var head *node
 	n := &node{
 		hash: rand.Uint32(),
@@ -123,20 +140,20 @@ func TestMakeTree(t *testing.T) {
 		}
 		n = n.right
 	}
-	root := makeTree(head)
-	if !isTreeAsExpected(root) {
+	root := treeify(head)
+	if !isTreeRootAsExpected(root) {
 		t.FailNow()
 	}
 }
 
-func isTreeAsExpected(root *node) bool {
+func isTreeRootAsExpected(root *node) bool {
 	if root == nil {
 		return true
 	}
-	return isTreeNodeAsExpected(root) && isTreeAsExpected(root.left) && isTreeAsExpected(root.right)
+	return isTreeLeafAsExpected(root) && isTreeRootAsExpected(root.left) && isTreeRootAsExpected(root.right)
 }
 
-func isTreeNodeAsExpected(n *node) bool {
+func isTreeLeafAsExpected(n *node) bool {
 	if n == nil {
 		return true
 	} else {
