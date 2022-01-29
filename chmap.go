@@ -1,11 +1,11 @@
 package chmap
 
 import (
+	"errors"
 	"hash/fnv"
 	"sync"
 )
 
-const loadFactor = 0.75
 const defaultCapacity = 16
 const treeThreshold = 16
 
@@ -21,160 +21,84 @@ type bucket struct {
 	sync.RWMutex
 	node *node
 	tree bool
+	size int
 }
 
 type ConcurrentHashMap struct {
-	capacity   uint32
-	loadFactor float32
-	buckets    []*bucket
+	capacity uint32
+	table    []*bucket
 }
 
-func New() (chm ConcurrentHashMap) {
-	chm.capacity = defaultCapacity
-	chm.loadFactor = loadFactor
-	chm.buckets = make([]*bucket, chm.capacity)
+func New() ConcurrentHashMap {
+	chm, _ := NewWithCap(defaultCapacity)
+	return chm
+}
+
+func NewWithCap(capacity int) (chm ConcurrentHashMap, err error) {
+	if capacity < 0 {
+		err = errors.New("capacity must be positive value")
+		return
+	}
+	chm.capacity = uint32(capacity)
+	chm.table = make([]*bucket, chm.capacity)
 	for i := 0; i < int(chm.capacity); i++ {
-		chm.buckets[i] = &bucket{}
+		chm.table[i] = &bucket{}
 	}
 	return
 }
 
 func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 	h := hash(key)
-	b := m.buckets[h%m.capacity]
+	b := m.table[h%m.capacity]
 	b.Lock()
-	defer b.Unlock()
-	n := &node{
-		hash:  h,
-		key:   key,
-		value: value,
-		right: nil,
-	}
-	if b.tree {
-		l := findLeaf(b.node, h)
-		if l == nil {
-			b.node = n
-		} else {
-			if l.hash > h {
-				l.left = n
-			} else {
-				l.right = n
-			}
-		}
+	b.put(h, key, value)
+	b.Unlock()
+}
+
+func (m *ConcurrentHashMap) Get(key string) (interface{}, bool) {
+	h := hash(key)
+	b := m.table[h%m.capacity]
+	b.RLock()
+	n := b.get(h, key)
+	b.RUnlock()
+	if n != nil {
+		return n.value, true
 	} else {
-		t, i := findTail(b.node)
-		if t == nil {
-			b.node = n
-		} else {
-			t.right = n
-			if i >= treeThreshold {
-				//TODO: make linked list tree
-			}
-		}
+		return nil, false
 	}
 }
 
-func (m *ConcurrentHashMap) Get(key string) (val interface{}, ok bool) {
+func (m *ConcurrentHashMap) GetOrDefault(key string, defVal interface{}) interface{} {
 	h := hash(key)
-	b := m.buckets[h%m.capacity]
+	b := m.table[h%m.capacity]
 	b.RLock()
-	defer b.RUnlock()
-	n := b.node
-	for n != nil {
-		if n.key == key {
-			return n.value, true
-		}
-		if b.tree && n.hash > h {
-			n = n.left
-		} else {
-			n = n.right
-		}
+	n := b.get(h, key)
+	b.RUnlock()
+	if n != nil {
+		return n.value
+	} else {
+		return defVal
 	}
-	return nil, false
 }
 
 func (m *ConcurrentHashMap) Contains(key string) bool {
 	h := hash(key)
-	b := m.buckets[h%m.capacity]
+	b := m.table[h%m.capacity]
 	b.RLock()
-	defer b.RUnlock()
-	n := b.node
-	for n != nil {
-		if n.key == key {
-			return true
-		}
-		if b.tree && n.hash > h {
-			n = n.left
-		} else {
-			n = n.right
-		}
-	}
-	return false
+	n := b.get(h, key)
+	b.RUnlock()
+	return n != nil
 }
 
 func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
 	h := hash(key)
-	b := m.buckets[h%m.capacity]
+	b := m.table[h%m.capacity]
 	b.RLock()
-	defer b.RUnlock()
-	if b.tree {
-		n := b.node
-		var pn *node
-		for n != nil {
-			if n.key == key {
-				if n.left != nil {
-					n = n.left
-					var ipn *node
-					for {
-						if n.right != nil {
-							ipn = n
-							n = n.right
-						} else if n.left != nil {
-							ipn = n
-							n = n.left
-						} else {
-							break
-						}
-					}
-					pn.value = n.value
-					if ipn.left == n {
-						ipn.left = nil
-					} else {
-						ipn.right = nil
-					}
-				} else if n.right != nil {
-
-				} else {
-					if pn.left == n {
-						pn.left = nil
-					} else {
-						pn.right = nil
-					}
-				}
-			}
-			pn = n
-			if n.hash > h {
-				n = n.left
-			} else {
-				n = n.right
-			}
-		}
-		return nil, false
+	n := b.remove(h, key)
+	b.RUnlock()
+	if n != nil {
+		return n.value, true
 	} else {
-		n := b.node
-		var pn *node
-		for n != nil {
-			if n.key == key {
-				if pn == nil {
-					b.node = nil
-					return n.value, true
-				}
-				pn.right = n.right
-				return n.value, true
-			}
-			pn = n
-			n = n.right
-		}
 		return nil, false
 	}
 }
@@ -183,18 +107,6 @@ func hash(key string) uint32 {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(key))
 	return h.Sum32()
-}
-
-func findTail(n *node) (*node, int) {
-	if n == nil {
-		return nil, 0
-	}
-	i := 1
-	for n.right != nil {
-		i++
-		n = n.right
-	}
-	return n, i
 }
 
 func findLeaf(n *node, hash uint32) *node {
@@ -275,4 +187,151 @@ func sort(nodes []*node) {
 			}
 		}
 	}
+}
+
+func (b *bucket) get(h uint32, k string) *node {
+	n := b.node
+	for n != nil {
+		if n.hash == h && n.key == k {
+			return n
+		}
+		if b.tree && n.hash > h {
+			n = n.left
+		} else {
+			n = n.right
+		}
+	}
+	return nil
+}
+
+func (b *bucket) put(h uint32, k string, v interface{}) {
+	nn := &node{
+		hash:  h,
+		key:   k,
+		value: v,
+	}
+	if b.tree {
+		n := b.node
+		if n == nil {
+			b.node = n
+			b.size++
+			return
+		}
+		var pn *node
+		for n != nil {
+			if n.hash == h && n.key == k {
+				n.value = v
+				return
+			}
+			pn = n
+			if n.hash > h {
+				n = n.left
+			} else {
+				n = n.right
+			}
+		}
+		if pn.hash > h {
+			pn.left = nn
+		} else {
+			pn.right = nn
+		}
+		b.size++
+	} else {
+		fn := b.get(h, k)
+		if fn != nil {
+			fn.value = v
+		} else {
+			nn.right = b.node
+			b.node = nn
+			b.size++
+			if b.size >= treeThreshold {
+				makeTree(b.node)
+				b.tree = true
+			}
+		}
+	}
+}
+
+func (b *bucket) remove(h uint32, k string) *node {
+	if b.tree {
+		n := b.node
+		var pn *node
+		for n != nil {
+			if n.hash == h && n.key == k {
+				if n.left != nil {
+					n = n.left
+					var ipn *node
+					for {
+						if n.right != nil {
+							ipn = n
+							n = n.right
+						} else if n.left != nil {
+							ipn = n
+							n = n.left
+						} else {
+							break
+						}
+					}
+					pn.value = n.value
+					if ipn.left == n {
+						ipn.left = nil
+					} else {
+						ipn.right = nil
+					}
+				} else if n.right != nil {
+					n = n.right
+					var ipn *node
+					for {
+						if n.left != nil {
+							ipn = n
+							n = n.left
+						} else if n.right != nil {
+							ipn = n
+							n = n.right
+						} else {
+							break
+						}
+					}
+					pn.value = n.value
+					if ipn.left == n {
+						ipn.left = nil
+					} else {
+						ipn.right = nil
+					}
+				} else {
+					if pn.left == n {
+						pn.left = nil
+					} else {
+						pn.right = nil
+					}
+				}
+			}
+			pn = n
+			if n.hash > h {
+				n = n.left
+			} else {
+				n = n.right
+			}
+		}
+	} else {
+		n := b.node
+		var pn *node
+		for n != nil {
+			if n.hash == h && n.key == k {
+				if pn == nil {
+					pn = b.node
+					b.node = nil
+					b.size--
+					return pn
+				} else {
+					pn.right = n.right
+					b.size--
+					return n
+				}
+			}
+			pn = n
+			n = n.right
+		}
+	}
+	return nil
 }
