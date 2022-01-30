@@ -22,7 +22,7 @@ type bucket struct {
 	sync.RWMutex
 	node *node
 	tree bool
-	size int
+	size int64
 }
 
 // ConcurrentHashMap string:any map
@@ -67,11 +67,10 @@ func (m *ConcurrentHashMap) Get(key string) (interface{}, bool) {
 	b.RLock()
 	n := b.get(h, key)
 	b.RUnlock()
-	if n != nil {
-		return n.value, true
-	} else {
+	if n == nil {
 		return nil, false
 	}
+	return n.value, true
 }
 
 // GetOrDefault returns the value mapped by the given key
@@ -82,11 +81,10 @@ func (m *ConcurrentHashMap) GetOrDefault(key string, defVal interface{}) interfa
 	b.RLock()
 	n := b.get(h, key)
 	b.RUnlock()
-	if n != nil {
-		return n.value
-	} else {
+	if n == nil {
 		return defVal
 	}
+	return n.value
 }
 
 // Contains returns if given key is mapped or not
@@ -103,23 +101,22 @@ func (m *ConcurrentHashMap) Contains(key string) bool {
 func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
-	b.RLock()
+	b.Lock()
 	n := b.remove(h, key)
-	b.RUnlock()
-	if n != nil {
-		return n.value, true
-	} else {
+	b.Unlock()
+	if n == nil {
 		return nil, false
 	}
+	return n.value, true
 }
 
 // Size returns size of the map
 func (m *ConcurrentHashMap) Size() int {
-	size := 0
+	var size int64 = 0
 	for _, b := range m.table {
 		size += b.size
 	}
-	return size
+	return int(size)
 }
 
 func hash(key string) uint32 {
@@ -205,24 +202,24 @@ func (b *bucket) get(h uint32, k string) *node {
 }
 
 func (b *bucket) put(h uint32, k string, v interface{}) {
+	if fn := b.get(h, k); fn != nil {
+		fn.value = v
+		return
+	}
 	nn := &node{
 		hash:  h,
 		key:   k,
 		value: v,
 	}
 	if b.tree {
-		n := b.node
-		if n == nil {
-			b.node = n
+		if b.node == nil {
+			b.node = nn
 			b.size++
 			return
 		}
+		n := b.node
 		var pn *node
 		for n != nil {
-			if n.hash == h && n.key == k {
-				n.value = v
-				return
-			}
 			pn = n
 			if n.hash > h {
 				n = n.left
@@ -237,17 +234,13 @@ func (b *bucket) put(h uint32, k string, v interface{}) {
 		}
 		b.size++
 	} else {
-		fn := b.get(h, k)
-		if fn != nil {
-			fn.value = v
-		} else {
-			nn.right = b.node
-			b.node = nn
-			b.size++
-			if b.size >= treeThreshold {
-				treeify(b.node)
-				b.tree = true
-			}
+		nn.right = b.node
+		b.node = nn
+		b.size++
+		if b.size >= treeThreshold {
+			r := treeify(b.node)
+			b.node = r
+			b.tree = true
 		}
 	}
 }
@@ -256,8 +249,10 @@ func (b *bucket) remove(h uint32, k string) *node {
 	if b.tree {
 		n := b.node
 		var pn *node
+		var left bool
 		for n != nil {
 			if n.hash == h && n.key == k {
+				rn := n
 				if n.left != nil {
 					n = n.left
 					var ipn *node
@@ -272,11 +267,23 @@ func (b *bucket) remove(h uint32, k string) *node {
 							break
 						}
 					}
-					pn.value = n.value
-					if ipn.left == n {
-						ipn.left = nil
+					n.left = rn.left
+					n.right = rn.right
+					if ipn != nil {
+						if ipn.left == n {
+							ipn.left = nil
+						} else {
+							ipn.right = nil
+						}
+					}
+					if pn != nil {
+						if left {
+							pn.left = n
+						} else {
+							pn.right = n
+						}
 					} else {
-						ipn.right = nil
+						b.node = n
 					}
 				} else if n.right != nil {
 					n = n.right
@@ -292,26 +299,48 @@ func (b *bucket) remove(h uint32, k string) *node {
 							break
 						}
 					}
-					pn.value = n.value
-					if ipn.left == n {
-						ipn.left = nil
+					n.right = rn.right
+					n.left = rn.left
+					if ipn != nil {
+						if ipn.left == n {
+							ipn.left = nil
+						} else {
+							ipn.right = nil
+						}
+					}
+					if pn != nil {
+						if left {
+							pn.left = n
+						} else {
+							pn.right = n
+						}
 					} else {
-						ipn.right = nil
+						b.node = n
 					}
 				} else {
-					if pn.left == n {
-						pn.left = nil
+					if pn != nil {
+						if left {
+							pn.left = nil
+						} else {
+							pn.right = nil
+						}
 					} else {
-						pn.right = nil
+						b.node = nil
 					}
 				}
+				rn.right = nil
+				rn.left = nil
+				return rn
 			}
 			pn = n
 			if n.hash > h {
 				n = n.left
+				left = true
 			} else {
 				n = n.right
+				left = false
 			}
+
 		}
 	} else {
 		n := b.node
@@ -322,12 +351,13 @@ func (b *bucket) remove(h uint32, k string) *node {
 					pn = b.node
 					b.node = nil
 					b.size--
+					pn.right = nil
 					return pn
-				} else {
-					pn.right = n.right
-					b.size--
-					return n
 				}
+				pn.right = n.right
+				b.size--
+				n.right = nil
+				return n
 			}
 			pn = n
 			n = n.right
