@@ -98,7 +98,7 @@ func (m *ConcurrentHashMap) Contains(key string) bool {
 }
 
 // Remove removes entry by given key
-func (m *ConcurrentHashMap) Remove(key string) (val interface{}, ok bool) {
+func (m *ConcurrentHashMap) Remove(key string) (interface{}, bool) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
 	b.Lock()
@@ -117,6 +117,92 @@ func (m *ConcurrentHashMap) Size() int {
 		size += b.size
 	}
 	return int(size)
+}
+
+func (b *bucket) get(h uint32, k string) *node {
+	n := b.node
+	for n != nil {
+		if n.hash == h && n.key == k {
+			return n
+		}
+		if b.tree && n.hash > h {
+			n = n.left
+		} else {
+			n = n.right
+		}
+	}
+	return nil
+}
+
+func (b *bucket) put(h uint32, k string, v interface{}) {
+	if fn := b.get(h, k); fn != nil {
+		fn.value = v
+		return
+	}
+	nn := &node{
+		hash:  h,
+		key:   k,
+		value: v,
+	}
+	if b.tree {
+		if b.node == nil {
+			b.node = nn
+			b.size++
+			return
+		}
+		n := b.node
+		var pn *node
+		for n != nil {
+			pn = n
+			if n.hash > h {
+				n = n.left
+			} else {
+				n = n.right
+			}
+		}
+		if pn.hash > h {
+			pn.left = nn
+		} else {
+			pn.right = nn
+		}
+		b.size++
+	} else {
+		nn.right = b.node
+		b.node = nn
+		b.size++
+		if b.size >= treeThreshold {
+			r := treeify(b.node)
+			b.node = r
+			b.tree = true
+		}
+	}
+}
+
+func (b *bucket) remove(h uint32, k string) *node {
+	if b.tree {
+		sn, rn := treeRemove(b.node, h, k)
+		if rn != nil {
+			b.size--
+			if b.node == rn {
+				b.node = sn
+			}
+		}
+		return rn
+	} else {
+		rn, ok := listRemove(b.node, h, k)
+		if ok {
+			b.size--
+			if rn == nil {
+				rn = b.node
+				if b.node.right != nil {
+					b.node = b.node.right
+				} else {
+					b.node = nil
+				}
+			}
+		}
+		return rn
+	}
 }
 
 func hash(key string) uint32 {
@@ -186,182 +272,59 @@ func sort(nodes []*node) {
 	}
 }
 
-func (b *bucket) get(h uint32, k string) *node {
-	n := b.node
+func listRemove(n *node, h uint32, k string) (*node, bool) {
+	var pn *node
 	for n != nil {
 		if n.hash == h && n.key == k {
-			return n
+			if pn == nil {
+				return nil, true
+			}
+			pn.right = n.right
+			return n, true
 		}
-		if b.tree && n.hash > h {
-			n = n.left
-		} else {
-			n = n.right
-		}
+		pn = n
+		n = n.right
 	}
-	return nil
+	return nil, false
 }
 
-func (b *bucket) put(h uint32, k string, v interface{}) {
-	if fn := b.get(h, k); fn != nil {
-		fn.value = v
-		return
+func treeRemove(r *node, h uint32, k string) (*node, *node) {
+	if r == nil {
+		return nil, nil
 	}
-	nn := &node{
-		hash:  h,
-		key:   k,
-		value: v,
+	if r.hash > h {
+		var rn *node
+		r.left, rn = treeRemove(r.left, h, k)
+		return r, rn
+	} else if r.hash < h || r.key != k {
+		var rn *node
+		r.right, rn = treeRemove(r.right, h, k)
+		return r, rn
 	}
-	if b.tree {
-		if b.node == nil {
-			b.node = nn
-			b.size++
-			return
+	if r.left == nil {
+		return r.right, r
+	} else if r.right == nil {
+		return r.left, r
+	} else {
+		spn := r
+		sn := r.right
+		for sn.left != nil {
+			spn = sn
+			sn = sn.left
 		}
-		n := b.node
-		var pn *node
-		for n != nil {
-			pn = n
-			if n.hash > h {
-				n = n.left
-			} else {
-				n = n.right
-			}
-		}
-		if pn.hash > h {
-			pn.left = nn
+		if spn != r {
+			spn.left = sn.right
 		} else {
-			pn.right = nn
+			spn.right = sn.right
 		}
-		b.size++
-	} else {
-		nn.right = b.node
-		b.node = nn
-		b.size++
-		if b.size >= treeThreshold {
-			r := treeify(b.node)
-			b.node = r
-			b.tree = true
+		rn := &node{
+			hash:  r.hash,
+			key:   r.key,
+			value: r.value,
 		}
+		r.hash = sn.hash
+		r.key = sn.key
+		r.value = sn.value
+		return r, rn
 	}
-}
-
-func (b *bucket) remove(h uint32, k string) *node {
-	if b.tree {
-		n := b.node
-		var pn *node
-		var left bool
-		for n != nil {
-			if n.hash == h && n.key == k {
-				rn := n
-				if n.left != nil {
-					n = n.left
-					var ipn *node
-					for {
-						if n.right != nil {
-							ipn = n
-							n = n.right
-						} else if n.left != nil {
-							ipn = n
-							n = n.left
-						} else {
-							break
-						}
-					}
-					n.left = rn.left
-					n.right = rn.right
-					if ipn != nil {
-						if ipn.left == n {
-							ipn.left = nil
-						} else {
-							ipn.right = nil
-						}
-					}
-					if pn != nil {
-						if left {
-							pn.left = n
-						} else {
-							pn.right = n
-						}
-					} else {
-						b.node = n
-					}
-				} else if n.right != nil {
-					n = n.right
-					var ipn *node
-					for {
-						if n.left != nil {
-							ipn = n
-							n = n.left
-						} else if n.right != nil {
-							ipn = n
-							n = n.right
-						} else {
-							break
-						}
-					}
-					n.right = rn.right
-					n.left = rn.left
-					if ipn != nil {
-						if ipn.left == n {
-							ipn.left = nil
-						} else {
-							ipn.right = nil
-						}
-					}
-					if pn != nil {
-						if left {
-							pn.left = n
-						} else {
-							pn.right = n
-						}
-					} else {
-						b.node = n
-					}
-				} else {
-					if pn != nil {
-						if left {
-							pn.left = nil
-						} else {
-							pn.right = nil
-						}
-					} else {
-						b.node = nil
-					}
-				}
-				rn.right = nil
-				rn.left = nil
-				return rn
-			}
-			pn = n
-			if n.hash > h {
-				n = n.left
-				left = true
-			} else {
-				n = n.right
-				left = false
-			}
-
-		}
-	} else {
-		n := b.node
-		var pn *node
-		for n != nil {
-			if n.hash == h && n.key == k {
-				if pn == nil {
-					pn = b.node
-					b.node = nil
-					b.size--
-					pn.right = nil
-					return pn
-				}
-				pn.right = n.right
-				b.size--
-				n.right = nil
-				return n
-			}
-			pn = n
-			n = n.right
-		}
-	}
-	return nil
 }
