@@ -1,4 +1,4 @@
-// Package chmap concurrent hash map implemention
+// Package chmap concurrent hash map implementation
 package chmap
 
 import (
@@ -74,7 +74,7 @@ func (m *ConcurrentHashMap) Get(key string) (interface{}, bool) {
 }
 
 // GetOrDefault returns the value mapped by the given key
-// If there isn't any mapping by given key, it returns given defaul value
+// If there is not any mapping by given key, it returns given default value
 func (m *ConcurrentHashMap) GetOrDefault(key string, defVal interface{}) interface{} {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -165,18 +165,19 @@ func (b *bucket) put(h uint32, k string, v interface{}) {
 	}
 }
 
-func (b *bucket) remove(h uint32, k string) *node {
+func (b *bucket) remove(h uint32, k string) (rn *node) {
 	if b.tree {
-		sn, rn := treeRemove(b.node, h, k)
+		var sn *node
+		sn, rn = treeRemove(b.node, h, k)
 		if rn != nil {
 			b.size--
 			if b.node == rn {
 				b.node = sn
 			}
 		}
-		return rn
 	} else {
-		rn, ok := listRemove(b.node, h, k)
+		var ok bool
+		rn, ok = listRemove(b.node, h, k)
 		if ok {
 			b.size--
 			if rn == nil {
@@ -188,8 +189,8 @@ func (b *bucket) remove(h uint32, k string) *node {
 				}
 			}
 		}
-		return rn
 	}
+	return rn
 }
 
 func hash(key string) uint32 {

@@ -34,20 +34,20 @@ func TestNewWithCap_NegativeCapacity(t *testing.T) {
 
 func TestConcurrentHashMap_Put(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	for i := 50_000; i < 150_000; i++ {
+	for i := 5_000; i < 15_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
 }
 
 func TestConcurrentHashMap_Put_Verify(t *testing.T) {
 	m := New()
-	for i := 0; i < 10_000; i++ {
+	for i := 0; i < 1_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	for i := 5_000; i < 15_000; i++ {
+	for i := 500; i < 1_500; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
 	verifyMap(t, &m)
@@ -63,9 +63,9 @@ func TestConcurrentHashMap_ConcurrentlyPut(t *testing.T) {
 		}
 	}
 	wg.Add(3)
-	go putRange(&m, &wg, 0, 100_000)
-	go putRange(&m, &wg, 50_000, 150_000)
-	go putRange(&m, &wg, 100_000, 200_000)
+	go putRange(&m, &wg, 0, 10_000)
+	go putRange(&m, &wg, 5_000, 15_000)
+	go putRange(&m, &wg, 10_000, 20_000)
 	wg.Wait()
 }
 
@@ -79,16 +79,16 @@ func TestConcurrentHashMap_ConcurrentlyPut_Verify(t *testing.T) {
 		}
 	}
 	wg.Add(3)
-	go putRange(&m, &wg, 0, 10_000)
-	go putRange(&m, &wg, 5_000, 15_000)
-	go putRange(&m, &wg, 10_000, 20_000)
+	go putRange(&m, &wg, 0, 1_000)
+	go putRange(&m, &wg, 500, 1_500)
+	go putRange(&m, &wg, 1_000, 2_000)
 	wg.Wait()
 	verifyMap(t, &m)
 }
 
 func TestConcurrentHashMap_Put_Get(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
 		if v, ok := m.Get(k); !ok || v != i {
@@ -96,7 +96,7 @@ func TestConcurrentHashMap_Put_Get(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	for i := 100_000; i < 150_000; i++ {
+	for i := 10_000; i < 15_000; i++ {
 		k := strconv.Itoa(i)
 		if v, ok := m.Get(k); ok {
 			t.Logf("key: %s, value: %v, ok: %v", k, v, ok)
@@ -115,11 +115,11 @@ func TestConcurrentHashMap_ConcurrentlyPut_Get(t *testing.T) {
 		}
 	}
 	wg.Add(3)
-	go putRange(&m, &wg, 0, 100_000)
-	go putRange(&m, &wg, 50_000, 150_000)
-	go putRange(&m, &wg, 100_000, 200_000)
+	go putRange(&m, &wg, 0, 10_000)
+	go putRange(&m, &wg, 5_000, 15_000)
+	go putRange(&m, &wg, 10_000, 20_000)
 	wg.Wait()
-	for i := 0; i < 200_000; i++ {
+	for i := 0; i < 20_000; i++ {
 		k := strconv.Itoa(i)
 		if v, ok := m.Get(k); !ok || v != i {
 			t.Logf("key: %s, value: %v, ok: %v", k, v, ok)
@@ -130,7 +130,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_Get(t *testing.T) {
 
 func TestConcurrentHashMap_Put_GetOrDefault(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
 		if v := m.GetOrDefault(k, nil); v != i {
@@ -138,7 +138,7 @@ func TestConcurrentHashMap_Put_GetOrDefault(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	for i := 100_000; i < 150_000; i++ {
+	for i := 10_000; i < 15_000; i++ {
 		k := strconv.Itoa(i)
 		if v := m.GetOrDefault(k, nil); v != nil {
 			t.Logf("key: %s, value: %v", k, v)
@@ -157,18 +157,18 @@ func TestConcurrentHashMap_ConcurrentlyPut_GetOrDefault(t *testing.T) {
 		}
 	}
 	wg.Add(3)
-	go putRange(&m, &wg, 0, 100_000)
-	go putRange(&m, &wg, 50_000, 150_000)
-	go putRange(&m, &wg, 100_000, 200_000)
+	go putRange(&m, &wg, 0, 10_000)
+	go putRange(&m, &wg, 5_000, 15_000)
+	go putRange(&m, &wg, 10_000, 20_000)
 	wg.Wait()
-	for i := 0; i < 200_000; i++ {
+	for i := 0; i < 20_000; i++ {
 		k := strconv.Itoa(i)
 		if v := m.GetOrDefault(k, nil); v != i {
 			t.Logf("key: %s, value: %v", k, v)
 			t.FailNow()
 		}
 	}
-	for i := 200_000; i < 300_000; i++ {
+	for i := 20_000; i < 25_000; i++ {
 		k := strconv.Itoa(i)
 		if v := m.GetOrDefault(k, nil); v != nil {
 			t.Logf("key: %s, value: %v", k, v)
@@ -179,7 +179,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_GetOrDefault(t *testing.T) {
 
 func TestConcurrentHashMap_Put_Contains(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
 		if ok := m.Contains(k); !ok {
@@ -187,7 +187,7 @@ func TestConcurrentHashMap_Put_Contains(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	for i := 100_000; i < 150_000; i++ {
+	for i := 10_000; i < 15_000; i++ {
 		k := strconv.Itoa(i)
 		if ok := m.Contains(k); ok {
 			t.Logf("key: %s, ok: %v", k, ok)
@@ -206,18 +206,18 @@ func TestConcurrentHashMap_ConcurrentlyPut_Contains(t *testing.T) {
 		}
 	}
 	wg.Add(3)
-	go putRange(&m, &wg, 0, 100_000)
-	go putRange(&m, &wg, 50_000, 150_000)
-	go putRange(&m, &wg, 100_000, 200_000)
+	go putRange(&m, &wg, 0, 10_000)
+	go putRange(&m, &wg, 5_000, 15_000)
+	go putRange(&m, &wg, 10_000, 20_000)
 	wg.Wait()
-	for i := 0; i < 200_000; i++ {
+	for i := 0; i < 20_000; i++ {
 		k := strconv.Itoa(i)
 		if ok := m.Contains(k); !ok {
 			t.Logf("key: %s, ok: %v", k, ok)
 			t.FailNow()
 		}
 	}
-	for i := 200_000; i < 300_000; i++ {
+	for i := 20_000; i < 25_000; i++ {
 		k := strconv.Itoa(i)
 		if ok := m.Contains(k); ok {
 			t.Logf("key: %s, ok: %v", k, ok)
@@ -228,17 +228,17 @@ func TestConcurrentHashMap_ConcurrentlyPut_Contains(t *testing.T) {
 
 func TestConcurrentHashMap_Put_Remove(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		if v, ok := m.Remove(k); !ok && v != i {
 			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
 			t.FailNow()
 		}
 	}
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		if v, ok := m.Remove(k); ok {
 			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
@@ -249,20 +249,20 @@ func TestConcurrentHashMap_Put_Remove(t *testing.T) {
 
 func TestConcurrentHashMap_Put_Remove_Verify(t *testing.T) {
 	m := New()
-	for i := 0; i < 10_000; i++ {
+	for i := 0; i < 1_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	for i := 0; i < 10_000; i++ {
+	for i := 0; i < 1_000; i++ {
 		k := strconv.Itoa(i)
 		if v, ok := m.Remove(k); !ok && v != i {
 			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
 			t.FailNow()
 		}
-		if i+1%2_000 == 0 {
+		if i+1%200 == 0 {
 			verifyMap(t, &m)
 		}
 	}
-	for i := 0; i < 10_000; i++ {
+	for i := 0; i < 1_000; i++ {
 		k := strconv.Itoa(i)
 		if v, ok := m.Remove(k); ok {
 			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
@@ -272,36 +272,6 @@ func TestConcurrentHashMap_Put_Remove_Verify(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_Remove(t *testing.T) {
-	m := New()
-	var wg sync.WaitGroup
-	putRange := func(m *ConcurrentHashMap, wg *sync.WaitGroup, from, to int) {
-		defer wg.Done()
-		for i := from; i < to; i++ {
-			m.Put(strconv.Itoa(i), i)
-		}
-	}
-	wg.Add(3)
-	go putRange(&m, &wg, 0, 100_000)
-	go putRange(&m, &wg, 50_000, 150_000)
-	go putRange(&m, &wg, 100_000, 200_000)
-	wg.Wait()
-	for i := 0; i < 200_000; i++ {
-		k := strconv.Itoa(i)
-		if v, ok := m.Remove(k); !ok || v != i {
-			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
-			t.FailNow()
-		}
-	}
-	for i := 0; i < 200_000; i++ {
-		k := strconv.Itoa(i)
-		if v, ok := m.Remove(k); ok {
-			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
-			t.FailNow()
-		}
-	}
-}
-
-func TestConcurrentHashMap_ConcurrentlyPut_Remove_Verify(t *testing.T) {
 	m := New()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap, wg *sync.WaitGroup, from, to int) {
@@ -321,9 +291,6 @@ func TestConcurrentHashMap_ConcurrentlyPut_Remove_Verify(t *testing.T) {
 			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
 			t.FailNow()
 		}
-		if i+1%5_000 == 0 {
-			verifyMap(t, &m)
-		}
 	}
 	for i := 0; i < 20_000; i++ {
 		k := strconv.Itoa(i)
@@ -334,9 +301,42 @@ func TestConcurrentHashMap_ConcurrentlyPut_Remove_Verify(t *testing.T) {
 	}
 }
 
+func TestConcurrentHashMap_ConcurrentlyPut_Remove_Verify(t *testing.T) {
+	m := New()
+	var wg sync.WaitGroup
+	putRange := func(m *ConcurrentHashMap, wg *sync.WaitGroup, from, to int) {
+		defer wg.Done()
+		for i := from; i < to; i++ {
+			m.Put(strconv.Itoa(i), i)
+		}
+	}
+	wg.Add(3)
+	go putRange(&m, &wg, 0, 1_000)
+	go putRange(&m, &wg, 500, 1_500)
+	go putRange(&m, &wg, 1_000, 2_000)
+	wg.Wait()
+	for i := 0; i < 2_000; i++ {
+		k := strconv.Itoa(i)
+		if v, ok := m.Remove(k); !ok || v != i {
+			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
+			t.FailNow()
+		}
+		if i+1%500 == 0 {
+			verifyMap(t, &m)
+		}
+	}
+	for i := 0; i < 2_000; i++ {
+		k := strconv.Itoa(i)
+		if v, ok := m.Remove(k); ok {
+			t.Logf("k: %s, v: %v, ok: %v", k, v, ok)
+			t.FailNow()
+		}
+	}
+}
+
 func TestConcurrentHashMap_Put_Remove_Contains(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
 		if val, ok := m.Remove(k); !ok || val != i {
@@ -347,7 +347,7 @@ func TestConcurrentHashMap_Put_Remove_Contains(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	for i := 100_000; i < 150_000; i++ {
+	for i := 10_000; i < 15_000; i++ {
 		k := strconv.Itoa(i)
 		if _, ok := m.Remove(k); ok {
 			t.Logf("k: %s, ok: %v", k, ok)
@@ -358,17 +358,17 @@ func TestConcurrentHashMap_Put_Remove_Contains(t *testing.T) {
 
 func TestConcurrentHashMap_Put_Size(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	if s := m.Size(); s != 100_000 {
+	if s := m.Size(); s != 10_000 {
 		t.Logf("size: %d", s)
 		t.FailNow()
 	}
-	for i := 50_000; i < 150_000; i++ {
+	for i := 5_000; i < 15_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	if s := m.Size(); s != 150_000 {
+	if s := m.Size(); s != 15_000 {
 		t.Logf("size: %d", s)
 		t.FailNow()
 	}
@@ -384,11 +384,11 @@ func TestConcurrentHashMap_ConcurrentlyPut_Size(t *testing.T) {
 		}
 	}
 	wg.Add(3)
-	go putItr(&m, &wg, 0, 100_000)
-	go putItr(&m, &wg, 50_000, 150_000)
-	go putItr(&m, &wg, 100_000, 200_000)
+	go putItr(&m, &wg, 0, 10_000)
+	go putItr(&m, &wg, 5_000, 15_000)
+	go putItr(&m, &wg, 10_000, 20_000)
 	wg.Wait()
-	if s := m.Size(); s != 200_000 {
+	if s := m.Size(); s != 20_000 {
 		t.Errorf("size: %d", s)
 		t.FailNow()
 	}
@@ -396,28 +396,28 @@ func TestConcurrentHashMap_ConcurrentlyPut_Size(t *testing.T) {
 
 func TestConcurrentHashMap_Put_Remove_Size(t *testing.T) {
 	m := New()
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	if s := m.Size(); s != 100_000 {
+	if s := m.Size(); s != 10_000 {
 		t.Logf("size: %d", s)
 		t.FailNow()
 	}
-	for i := 50_000; i < 150_000; i++ {
+	for i := 5_000; i < 15_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
-	if s := m.Size(); s != 150_000 {
+	if s := m.Size(); s != 15_000 {
 		t.Logf("size: %d", s)
 		t.FailNow()
 	}
-	for i := 100_000; i < 200_000; i++ {
+	for i := 10_000; i < 20_000; i++ {
 		m.Remove(strconv.Itoa(i))
 	}
-	if s := m.Size(); s != 100_000 {
+	if s := m.Size(); s != 10_000 {
 		t.Logf("size: %d", s)
 		t.FailNow()
 	}
-	for i := 0; i < 100_000; i++ {
+	for i := 0; i < 10_000; i++ {
 		m.Remove(strconv.Itoa(i))
 	}
 	if s := m.Size(); s != 0 {
