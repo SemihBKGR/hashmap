@@ -144,32 +144,19 @@ func (b *bucket) put(h uint32, k string, v interface{}) {
 		key:   k,
 		value: v,
 	}
-	if b.tree {
-		if b.node == nil {
-			b.node = nn
-			b.size++
-			return
-		}
-		n := b.node
-		var pn *node
-		for n != nil {
-			pn = n
-			if n.hash > h {
-				n = n.left
-			} else {
-				n = n.right
-			}
-		}
-		if pn.hash > h {
-			pn.left = nn
-		} else {
-			pn.right = nn
-		}
-		b.size++
-	} else {
-		nn.right = b.node
+	if b.node == nil {
 		b.node = nn
-		b.size++
+		b.size = 1
+		return
+	}
+	if b.tree {
+		if treePut(b.node, nn) {
+			b.size++
+		}
+	} else {
+		if listPut(b.node, nn) {
+			b.size++
+		}
 		if b.size >= treeThreshold {
 			r := treeify(b.node)
 			b.node = r
@@ -327,4 +314,43 @@ func treeRemove(r *node, h uint32, k string) (*node, *node) {
 		r.value = sn.value
 		return r, rn
 	}
+}
+
+func listPut(hn *node, nn *node) bool {
+	var pn *node
+	for hn != nil {
+		if hn.hash == nn.hash && hn.key == nn.key {
+			hn.value = nn.value
+			return false
+		}
+		pn = hn
+		hn = hn.right
+	}
+	if pn != nil {
+		pn.right = nn
+		return true
+	}
+	return false
+}
+
+func treePut(rn *node, nn *node) bool {
+	var pn *node
+	for rn != nil {
+		if rn.hash == nn.hash && rn.key == nn.key {
+			rn.value = nn.value
+			return false
+		}
+		pn = rn
+		if rn.hash > nn.hash {
+			rn = rn.left
+		} else {
+			rn = rn.right
+		}
+	}
+	if pn.hash > nn.hash {
+		pn.left = nn
+	} else {
+		pn.right = nn
+	}
+	return true
 }
