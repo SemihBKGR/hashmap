@@ -1,4 +1,4 @@
-// Package chmap concurrent hash map implementation
+// Package chmap ConcurrentHashMap
 package chmap
 
 import (
@@ -25,19 +25,19 @@ type bucket struct {
 	size int64
 }
 
-// ConcurrentHashMap string:any map
+// ConcurrentHashMap thread-safe string:any map
 type ConcurrentHashMap struct {
 	capacity uint32
 	table    []*bucket
 }
 
-// New returns ConcurrentHashMap with default capacity
+// New returns ConcurrentHashMap with default capacity.
 func New() ConcurrentHashMap {
 	chm, _ := NewWithCap(defaultCapacity)
 	return chm
 }
 
-// NewWithCap returns ConcurrentHashMap with given capacity
+// NewWithCap returns ConcurrentHashMap with given capacity.
 func NewWithCap(capacity int) (chm ConcurrentHashMap, err error) {
 	if capacity <= 0 {
 		err = errors.New("capacity must be positive value")
@@ -51,7 +51,8 @@ func NewWithCap(capacity int) (chm ConcurrentHashMap, err error) {
 	return
 }
 
-// Put maps given key to given value
+// Put maps the given key to the value, and saves the entry.
+// In case of there is already an entry mapped by the given key, it updates the value of the entry.
 func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -60,7 +61,8 @@ func (m *ConcurrentHashMap) Put(key string, value interface{}) {
 	b.Unlock()
 }
 
-// Get returns mapped value fo given key
+// Get returns value of the entry mapped by given key.
+// If there is mopping by given key, it returns false.
 func (m *ConcurrentHashMap) Get(key string) (interface{}, bool) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -73,8 +75,8 @@ func (m *ConcurrentHashMap) Get(key string) (interface{}, bool) {
 	return n.value, true
 }
 
-// GetOrDefault returns the value mapped by the given key
-// If there is not any mapping by given key, it returns given default value
+// GetOrDefault returns the value of the entry mapped by the given key.
+// If there is mopping by the given key, it returns default value argument.
 func (m *ConcurrentHashMap) GetOrDefault(key string, defVal interface{}) interface{} {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -87,7 +89,7 @@ func (m *ConcurrentHashMap) GetOrDefault(key string, defVal interface{}) interfa
 	return n.value
 }
 
-// Contains returns if given key is mapped or not
+// Contains returns if there is an entry mapped by the given key.
 func (m *ConcurrentHashMap) Contains(key string) bool {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -97,7 +99,8 @@ func (m *ConcurrentHashMap) Contains(key string) bool {
 	return n != nil
 }
 
-// Remove removes entry by given key
+// Remove removes the entry mapped by the given key and returns value of removed entry and true.
+// In case of there is entry by the given key, It returns nil and false.
 func (m *ConcurrentHashMap) Remove(key string) (interface{}, bool) {
 	h := hash(key)
 	b := m.table[h%m.capacity]
@@ -110,7 +113,7 @@ func (m *ConcurrentHashMap) Remove(key string) (interface{}, bool) {
 	return n.value, true
 }
 
-// Size returns size of the map
+// Size returns the count of entries in the map
 func (m *ConcurrentHashMap) Size() int {
 	var size int64 = 0
 	for _, b := range m.table {

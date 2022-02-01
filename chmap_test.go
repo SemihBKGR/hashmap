@@ -2,10 +2,16 @@ package chmap
 
 import (
 	"math/rand"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	os.Exit(code)
+}
 
 func TestNew(t *testing.T) {
 	_ = New()
@@ -427,11 +433,10 @@ func TestConcurrentHashMap_Put_Remove_Size(t *testing.T) {
 }
 
 func TestTreeify(t *testing.T) {
-	var head *node
 	n := &node{
 		hash: rand.Uint32(),
 	}
-	head = n
+	head := n
 	for i := 0; i < 9; i++ {
 		n.right = &node{
 			hash: rand.Uint32(),
@@ -443,6 +448,8 @@ func TestTreeify(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+// Utility functions
 
 func verifyMap(t *testing.T, m *ConcurrentHashMap) {
 	if !mapVerified(m) {
@@ -481,5 +488,70 @@ func treeLeafNodeVerified(l *node) bool {
 		return l.hash > l.left.hash
 	} else {
 		return true
+	}
+}
+
+// Benchmark tests
+
+func BenchmarkConcurrentHashMap_Put(b *testing.B) {
+	m := New()
+	for i := 0; i < b.N; i++ {
+		m.Put(strconv.Itoa(i), i)
+	}
+}
+
+func BenchmarkConcurrentHashMap_Get(b *testing.B) {
+	m := New()
+	for i := 0; i < 100_000; i++ {
+		m.Put(strconv.Itoa(i), i)
+	}
+	for i := 0; i < b.N; i++ {
+		m.Get(strconv.Itoa(i))
+	}
+}
+
+func BenchmarkConcurrentHashMap_GetOrDefault(b *testing.B) {
+	m := New()
+	for i := 0; i < 100_000; i++ {
+		m.Put(strconv.Itoa(i), i)
+	}
+	for i := 0; i < b.N; i++ {
+		m.GetOrDefault(strconv.Itoa(i), nil)
+	}
+}
+
+func BenchmarkConcurrentHashMap_Contains(b *testing.B) {
+	m := New()
+	for i := 0; i < 100_000; i++ {
+		m.Put(strconv.Itoa(i), i)
+	}
+	for i := 0; i < b.N; i++ {
+		m.Contains(strconv.Itoa(i))
+	}
+}
+
+func BenchmarkConcurrentHashMap_Remove(b *testing.B) {
+	m := New()
+	for i := 0; i < 100_000; i++ {
+		m.Put(strconv.Itoa(i), i)
+	}
+	for i := 0; i < b.N; i++ {
+		m.Remove(strconv.Itoa(i))
+	}
+}
+
+func BenchmarkTreeify(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		n := &node{
+			hash: rand.Uint32(),
+		}
+		head := n
+		for i := 0; i < defaultCapacity; i++ {
+			n.right = &node{
+				hash: rand.Uint32(),
+			}
+			n = n.right
+		}
+		treeify(head)
 	}
 }
