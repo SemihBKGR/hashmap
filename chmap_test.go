@@ -8,38 +8,40 @@ import (
 	"testing"
 )
 
+//todo: better assertions in tests
+
 func TestMain(m *testing.M) {
 	code := m.Run()
 	os.Exit(code)
 }
 
 func TestNew(t *testing.T) {
-	_ = New[string, int]()
+	_ = New[Hasher, int]()
 }
 
 func TestNewWithCap_PositiveCapacity(t *testing.T) {
-	_, err := NewWithCap[string, int](32)
+	_, err := NewWithCap[Hasher, int](32)
 	if err != nil {
 		t.FailNow()
 	}
 }
 
 func TestNewWithCap_ZeroCapacity(t *testing.T) {
-	_, err := NewWithCap[string, int](0)
+	_, err := NewWithCap[Hasher, int](0)
 	if err == nil {
 		t.FailNow()
 	}
 }
 
 func TestNewWithCap_NegativeCapacity(t *testing.T) {
-	_, err := NewWithCap[string, int](-1)
+	_, err := NewWithCap[Hasher, int](-1)
 	if err == nil {
 		t.FailNow()
 	}
 }
 
 func TestConcurrentHashMap_Put(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -49,7 +51,7 @@ func TestConcurrentHashMap_Put(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Verify(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 1_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -60,7 +62,7 @@ func TestConcurrentHashMap_Put_Verify(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -76,7 +78,7 @@ func TestConcurrentHashMap_ConcurrentlyPut(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_Verify(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -93,7 +95,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_Verify(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Get(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
@@ -112,7 +114,7 @@ func TestConcurrentHashMap_Put_Get(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_Get(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -135,7 +137,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_Get(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_GetOrDefault(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
@@ -154,7 +156,7 @@ func TestConcurrentHashMap_Put_GetOrDefault(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_GetOrDefault(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -184,7 +186,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_GetOrDefault(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Contains(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
@@ -203,7 +205,7 @@ func TestConcurrentHashMap_Put_Contains(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_Contains(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -233,7 +235,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_Contains(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Remove(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -254,7 +256,7 @@ func TestConcurrentHashMap_Put_Remove(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Remove_Verify(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 1_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -278,7 +280,7 @@ func TestConcurrentHashMap_Put_Remove_Verify(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_Remove(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -308,7 +310,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_Remove(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_Remove_Verify(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putRange := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -341,7 +343,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_Remove_Verify(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Remove_Contains(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		k := strconv.Itoa(i)
 		m.Put(k, i)
@@ -363,7 +365,7 @@ func TestConcurrentHashMap_Put_Remove_Contains(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Size(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -381,7 +383,7 @@ func TestConcurrentHashMap_Put_Size(t *testing.T) {
 }
 
 func TestConcurrentHashMap_ConcurrentlyPut_Size(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	var wg sync.WaitGroup
 	putItr := func(m *ConcurrentHashMap[string, int], wg *sync.WaitGroup, from, to int) {
 		defer wg.Done()
@@ -401,7 +403,7 @@ func TestConcurrentHashMap_ConcurrentlyPut_Size(t *testing.T) {
 }
 
 func TestConcurrentHashMap_Put_Remove_Size(t *testing.T) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 10_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -494,14 +496,14 @@ func treeLeafNodeVerified[k, v any](l *node[k, v]) bool {
 // Benchmark tests
 
 func BenchmarkConcurrentHashMap_Put(b *testing.B) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < b.N; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
 }
 
 func BenchmarkConcurrentHashMap_Get(b *testing.B) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 100_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -511,7 +513,7 @@ func BenchmarkConcurrentHashMap_Get(b *testing.B) {
 }
 
 func BenchmarkConcurrentHashMap_GetOrDefault(b *testing.B) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 100_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -521,7 +523,7 @@ func BenchmarkConcurrentHashMap_GetOrDefault(b *testing.B) {
 }
 
 func BenchmarkConcurrentHashMap_Contains(b *testing.B) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 100_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}
@@ -531,7 +533,7 @@ func BenchmarkConcurrentHashMap_Contains(b *testing.B) {
 }
 
 func BenchmarkConcurrentHashMap_Remove(b *testing.B) {
-	m := New[string, int]()
+	m := NewString[int]()
 	for i := 0; i < 100_000; i++ {
 		m.Put(strconv.Itoa(i), i)
 	}

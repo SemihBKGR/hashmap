@@ -3,6 +3,7 @@ package chmap
 
 import (
 	"errors"
+	"hash/fnv"
 	"sync"
 )
 
@@ -24,27 +25,61 @@ type bucket[k, v any] struct {
 	size int64
 }
 
+//todo: consider to separate funcs in HashFunc
 type HashFunc[k any] struct {
-	f func(key k) uint32
+	hf func(key k) uint32
+	//todo: find better way to pass ef func in node funcs
+	ef func(k1, k2 k) bool
+}
+
+type Hasher interface {
+	Hash() uint32
+	Equals(a any) bool
 }
 
 // ConcurrentHashMap thread-safe string:any map
 type ConcurrentHashMap[k, v any] struct {
 	capacity uint32
 	table    []*bucket[k, v]
-	hash     HashFunc[k]
+	hashFunc *HashFunc[k]
 }
 
 // New returns ConcurrentHashMap with default capacity.
-func New[k, v any]() ConcurrentHashMap[k, v] {
+func New[k Hasher, v any]() ConcurrentHashMap[k, v] {
 	chm, _ := NewWithCap[k, v](defaultCapacity)
 	return chm
 }
 
+func NewWithHashFunc[k, v any](hashFunc *HashFunc[k]) (ConcurrentHashMap[k, v], error) {
+	return NewWithCapAndHashFunc[k, v](defaultCapacity, hashFunc)
+}
+
+func NewString[v any]() ConcurrentHashMap[string, v] {
+	chm, _ := NewStringWithCap[v](defaultCapacity)
+	return chm
+}
+
 // NewWithCap returns ConcurrentHashMap with given capacity.
-func NewWithCap[k, v any](capacity int) (chm ConcurrentHashMap[k, v], err error) {
+func NewWithCap[k Hasher, v any](capacity int) (chm ConcurrentHashMap[k, v], err error) {
+	hashFunc := HashFunc[k]{
+		hf: func(key k) uint32 {
+			return key.Hash()
+		},
+		ef: func(k1, k2 k) bool {
+			return k1.Equals(k2)
+		},
+	}
+	chm, err = NewWithCapAndHashFunc[k, v](capacity, &hashFunc)
+	return
+}
+
+func NewWithCapAndHashFunc[k, v any](capacity int, hashFunc *HashFunc[k]) (chm ConcurrentHashMap[k, v], err error) {
 	if capacity <= 0 {
 		err = errors.New("capacity must be positive value")
+		return
+	}
+	if hashFunc.hf == nil || hashFunc.ef == nil {
+		err = errors.New("funcs in HashFuncs cannot be nil")
 		return
 	}
 	chm.capacity = uint32(capacity)
@@ -52,27 +87,42 @@ func NewWithCap[k, v any](capacity int) (chm ConcurrentHashMap[k, v], err error)
 	for i := 0; i < int(chm.capacity); i++ {
 		chm.table[i] = &bucket[k, v]{}
 	}
-	//todo supply HashFunc
+	chm.hashFunc = hashFunc
+	return
+}
+
+func NewStringWithCap[v any](capacity int) (chm ConcurrentHashMap[string, v], err error) {
+	hashFunc := HashFunc[string]{
+		hf: func(key string) uint32 {
+			h := fnv.New32a()
+			_, _ = h.Write([]byte(key))
+			return h.Sum32()
+		},
+		ef: func(k1, k2 string) bool {
+			return k1 == k2
+		},
+	}
+	chm, err = NewWithCapAndHashFunc[string, v](capacity, &hashFunc)
 	return
 }
 
 // Put maps the given key to the value, and saves the entry.
 // In case of there is already an entry mapped by the given key, it updates the value of the entry.
 func (m *ConcurrentHashMap[k, v]) Put(key k, val v) {
-	h := m.hash.f(key)
+	h := m.hashFunc.hf(key)
 	b := m.table[h%m.capacity]
 	b.Lock()
-	b.put(h, key, val)
+	b.put(h, key, val, m.hashFunc.ef)
 	b.Unlock()
 }
 
 // Get returns value of the entry mapped by given key.
 // If there is mopping by given key, it returns false.
 func (m *ConcurrentHashMap[k, v]) Get(key k) (any, bool) {
-	h := m.hash.f(key)
+	h := m.hashFunc.hf(key)
 	b := m.table[h%m.capacity]
 	b.RLock()
-	n := b.get(h, key)
+	n := b.get(h, key, m.hashFunc.ef)
 	b.RUnlock()
 	if n == nil {
 		return nil, false
@@ -83,10 +133,10 @@ func (m *ConcurrentHashMap[k, v]) Get(key k) (any, bool) {
 // GetOrDefault returns the value of the entry mapped by the given key.
 // If there is mopping by the given key, it returns default value argument.
 func (m *ConcurrentHashMap[k, v]) GetOrDefault(key k, defVal v) v {
-	h := m.hash.f(key)
+	h := m.hashFunc.hf(key)
 	b := m.table[h%m.capacity]
 	b.RLock()
-	n := b.get(h, key)
+	n := b.get(h, key, m.hashFunc.ef)
 	b.RUnlock()
 	if n == nil {
 		return defVal
@@ -96,10 +146,10 @@ func (m *ConcurrentHashMap[k, v]) GetOrDefault(key k, defVal v) v {
 
 // Contains returns if there is an entry mapped by the given key.
 func (m *ConcurrentHashMap[k, v]) Contains(key k) bool {
-	h := m.hash.f(key)
+	h := m.hashFunc.hf(key)
 	b := m.table[h%m.capacity]
 	b.RLock()
-	n := b.get(h, key)
+	n := b.get(h, key, m.hashFunc.ef)
 	b.RUnlock()
 	return n != nil
 }
@@ -107,10 +157,10 @@ func (m *ConcurrentHashMap[k, v]) Contains(key k) bool {
 // Remove removes the entry mapped by the given key and returns value of removed entry and true.
 // In case of there is entry by the given key, It returns nil and false.
 func (m *ConcurrentHashMap[k, v]) Remove(key k) (v, bool) {
-	h := m.hash.f(key)
+	h := m.hashFunc.hf(key)
 	b := m.table[h%m.capacity]
 	b.Lock()
-	n := b.remove(h, key)
+	n := b.remove(h, key, m.hashFunc.ef)
 	b.Unlock()
 	if n == nil {
 		return *new(v), false
@@ -127,11 +177,10 @@ func (m *ConcurrentHashMap[k, v]) Size() int {
 	return int(size)
 }
 
-func (b *bucket[k, v]) get(h uint32, key k) *node[k, v] {
+func (b *bucket[k, v]) get(h uint32, key k, ef func(k1, k2 k) bool) *node[k, v] {
 	n := b.node
 	for n != nil {
-		// todo change the check of key equality
-		if n.hash == h && &n.key == &key {
+		if n.hash == h && ef(n.key, key) {
 			return n
 		}
 		if b.tree && n.hash > h {
@@ -143,8 +192,8 @@ func (b *bucket[k, v]) get(h uint32, key k) *node[k, v] {
 	return nil
 }
 
-func (b *bucket[k, v]) put(h uint32, key k, val v) {
-	if fn := b.get(h, key); fn != nil {
+func (b *bucket[k, v]) put(h uint32, key k, val v, ef func(k1, k2 k) bool) {
+	if fn := b.get(h, key, ef); fn != nil {
 		fn.value = val
 		return
 	}
@@ -174,10 +223,10 @@ func (b *bucket[k, v]) put(h uint32, key k, val v) {
 	}
 }
 
-func (b *bucket[k, v]) remove(h uint32, key k) (rn *node[k, v]) {
+func (b *bucket[k, v]) remove(h uint32, key k, ef func(k1, k2 k) bool) (rn *node[k, v]) {
 	if b.tree {
 		var sn *node[k, v]
-		sn, rn = treeRemove(b.node, h, key)
+		sn, rn = treeRemove(b.node, h, key, ef)
 		if rn != nil {
 			b.size--
 			if b.node == rn {
@@ -186,7 +235,7 @@ func (b *bucket[k, v]) remove(h uint32, key k) (rn *node[k, v]) {
 		}
 	} else {
 		var ok bool
-		rn, ok = listRemove(b.node, h, key)
+		rn, ok = listRemove(b.node, h, key, ef)
 		if ok {
 			b.size--
 			if rn == nil {
@@ -263,10 +312,10 @@ func sort[k, v any](nodes []*node[k, v]) {
 	}
 }
 
-func listRemove[k, v any](n *node[k, v], h uint32, key k) (*node[k, v], bool) {
+func listRemove[k, v any](n *node[k, v], h uint32, key k, ef func(k1, k2 k) bool) (*node[k, v], bool) {
 	var pn *node[k, v]
 	for n != nil {
-		if n.hash == h && &n.key == &key {
+		if n.hash == h && ef(n.key, key) {
 			if pn == nil {
 				return nil, true
 			}
@@ -279,17 +328,17 @@ func listRemove[k, v any](n *node[k, v], h uint32, key k) (*node[k, v], bool) {
 	return nil, false
 }
 
-func treeRemove[k, v any](r *node[k, v], h uint32, key k) (*node[k, v], *node[k, v]) {
+func treeRemove[k, v any](r *node[k, v], h uint32, key k, ef func(k1, k2 k) bool) (*node[k, v], *node[k, v]) {
 	if r == nil {
 		return nil, nil
 	}
 	if r.hash > h {
 		var rn *node[k, v]
-		r.left, rn = treeRemove(r.left, h, key)
+		r.left, rn = treeRemove(r.left, h, key, ef)
 		return r, rn
-	} else if r.hash < h || &r.key != &key {
+	} else if r.hash < h || !ef(r.key, key) {
 		var rn *node[k, v]
-		r.right, rn = treeRemove(r.right, h, key)
+		r.right, rn = treeRemove(r.right, h, key, ef)
 		return r, rn
 	}
 	if r.left == nil {
