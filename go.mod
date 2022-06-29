@@ -1,3 +1,3 @@
-module github.com/semihbkgr/chmap
+module github.com/semihbkgr/hashmap
 
 go 1.18

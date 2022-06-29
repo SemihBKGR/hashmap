@@ -1,4 +1,4 @@
-package chmap
+package hashmap
 
 import (
 	"math/rand"

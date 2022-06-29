@@ -1,5 +1,5 @@
-// Package chmap concurrent hash map
-package chmap
+// Package hashmap concurrent hash map
+package hashmap
 
 import (
 	"errors"
