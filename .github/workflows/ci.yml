@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0
+          fetch-depth: 2
       - name: Setup
         uses: actions/setup-go@v2
         with:
@@ -20,8 +20,8 @@ jobs:
       - name: Build
         run: go build -v ./...
       - name: Test
-        run: go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
       - name: Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
       - name: Vet
-        run: go vet ./...
+        run: go vet -v ./...

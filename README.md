@@ -63,12 +63,12 @@ func main() {
     }
 
     userContext:=make(map[string]any)
-    userContext["session"]=sessionId()
+    userContext["sessionID"]=sessionID()
 
     m.Put(user, userContext)
 
     if val, ok := m.Get(User{ID: 1}); ok {
-        _ = val["session"]
+        _ = val["sessionID"]
         // ...
     }
 

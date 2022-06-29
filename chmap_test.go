@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-//todo: better assertions in tests
-
 func TestMain(m *testing.M) {
 	code := m.Run()
 	os.Exit(code)
