@@ -25,13 +25,13 @@ type bucket[k, v any] struct {
 	size int64
 }
 
-//todo: consider to separate funcs in HashFunc
+// HashFunc contains hash and equals functions
 type HashFunc[k any] struct {
 	hf func(key k) uint32
-	//todo: find better way to pass ef func in node funcs
 	ef func(k1, k2 k) bool
 }
 
+// Hasher general interface to provide hash and equals function
 type Hasher interface {
 	Hash() uint32
 	Equals(a any) bool
@@ -41,6 +41,7 @@ type Hasher interface {
 type ConcurrentHashMap[k, v any] struct {
 	capacity uint32
 	table    []*bucket[k, v]
+	//todo: find better way to pass HashFunc.ef func in node funcs
 	hashFunc *HashFunc[k]
 }
 
@@ -50,10 +51,12 @@ func New[k Hasher, v any]() ConcurrentHashMap[k, v] {
 	return chm
 }
 
+// NewWithHashFunc returns ConcurrentHashMap with the given HashFunc and default capacity.
 func NewWithHashFunc[k, v any](hashFunc *HashFunc[k]) (ConcurrentHashMap[k, v], error) {
 	return NewWithCapAndHashFunc[k, v](defaultCapacity, hashFunc)
 }
 
+// NewString returns string type key ConcurrentHashMap with default capacity.
 func NewString[v any]() ConcurrentHashMap[string, v] {
 	chm, _ := NewStringWithCap[v](defaultCapacity)
 	return chm
@@ -73,6 +76,7 @@ func NewWithCap[k Hasher, v any](capacity int) (chm ConcurrentHashMap[k, v], err
 	return
 }
 
+// NewWithCapAndHashFunc returns ConcurrentHashMap with the given HashFunc and capacity.
 func NewWithCapAndHashFunc[k, v any](capacity int, hashFunc *HashFunc[k]) (chm ConcurrentHashMap[k, v], err error) {
 	if capacity <= 0 {
 		err = errors.New("capacity must be positive value")
@@ -91,6 +95,7 @@ func NewWithCapAndHashFunc[k, v any](capacity int, hashFunc *HashFunc[k]) (chm C
 	return
 }
 
+// NewStringWithCap returns string type key ConcurrentHashMap with given capacity.
 func NewStringWithCap[v any](capacity int) (chm ConcurrentHashMap[string, v], err error) {
 	hashFunc := HashFunc[string]{
 		hf: func(key string) uint32 {
@@ -118,7 +123,7 @@ func (m *ConcurrentHashMap[k, v]) Put(key k, val v) {
 
 // Get returns value of the entry mapped by given key.
 // If there is mopping by given key, it returns false.
-func (m *ConcurrentHashMap[k, v]) Get(key k) (any, bool) {
+func (m *ConcurrentHashMap[k, v]) Get(key k) (v, bool) {
 	h := m.hashFunc.hf(key)
 	b := m.table[h%m.capacity]
 	b.RLock()
