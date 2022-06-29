@@ -2,11 +2,12 @@
 
 [![CI Workflow Badge](https://github.com/SemihBKGR/chmap/actions/workflows/ci.yml/badge.svg)](https://github.com/SemihBKGR/chmap/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/SemihBKGR/chmap)](https://goreportcard.com/report/github.com/SemihBKGR/chmap)
+[![Codecov](https://codecov.io/gh/SemihBKGR/chmap/branch/master/graph/badge.svg?token=ygx9oP5oRn)](https://codecov.io/gh/SemihBKGR/chmap)
 [![Godoc Badge](https://godoc.org/github.com/SemihBKGR/chmap?status.png)](https://pkg.go.dev/github.com/SemihBKGR/chmap)
 
-ConcurrentHashMap implementation in go.
+Concurrent hash map implementation in go.
 
-It supports generic type, so go version 1.18 is required.
+chmap supports generic types, so go version 1.18 is required.
 
 ```bash
 go get github.com/semihbkgr/chmap@latest

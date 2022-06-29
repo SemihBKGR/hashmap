@@ -17,6 +17,21 @@ func TestNew(t *testing.T) {
 	_ = New[Hasher, int]()
 }
 
+func TestNewString(t *testing.T) {
+	_ = NewString[int]()
+}
+
+func TestNewWithFuncs(t *testing.T) {
+	_, _ = NewWithFuncs[int, int](
+		func(key int) uint32 {
+			return uint32(key)
+		},
+		func(k1, k2 int) bool {
+			return k1 == k2
+		},
+	)
+}
+
 func TestNewWithCap_PositiveCapacity(t *testing.T) {
 	_, err := NewWithCap[Hasher, int](32)
 	if err != nil {

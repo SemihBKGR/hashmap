@@ -1,6 +1,8 @@
 package chmap
 
-import "math/rand"
+import (
+	"math/rand"
+)
 
 func Example_string_map() {
 	m := NewString[int]()
@@ -39,7 +41,6 @@ func (u User) Equals(a any) bool {
 type UserContext map[string]any
 
 func Example_custom_map() {
-
 	m := New[User, UserContext]()
 
 	user := User{
@@ -56,5 +57,4 @@ func Example_custom_map() {
 		_ = val["sessionID"]
 		// ...
 	}
-
 }
