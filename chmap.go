@@ -7,8 +7,10 @@ import (
 	"sync"
 )
 
-const defaultCapacity = 16
-const treeThreshold = 16
+const (
+	defaultCapacity  = 16
+	treeifyThreshold = 16
+)
 
 type node[k, v any] struct {
 	hash  uint32
@@ -25,15 +27,15 @@ type bucket[k, v any] struct {
 	size int64
 }
 
-type HashFunc[k any] func(key k) uint32
-
-type EqualsFunc[k any] func(k1, k2 k) bool
-
 // Hasher general interface to provide hash and equals function
 type Hasher interface {
 	Hash() uint32
 	Equals(a any) bool
 }
+
+type HashFunc[k any] func(key k) uint32
+
+type EqualsFunc[k any] func(k1, k2 k) bool
 
 // ConcurrentHashMap thread-safe string:any map
 type ConcurrentHashMap[k, v any] struct {
@@ -49,15 +51,15 @@ func New[k Hasher, v any]() ConcurrentHashMap[k, v] {
 	return chm
 }
 
-// NewWithFuncs returns ConcurrentHashMap with the given funcs and default capacity.
-func NewWithFuncs[k, v any](hf HashFunc[k], ef EqualsFunc[k]) (ConcurrentHashMap[k, v], error) {
-	return NewWithCapAndFuncs[k, v](defaultCapacity, hf, ef)
-}
-
 // NewString returns string type key ConcurrentHashMap with default capacity.
 func NewString[v any]() ConcurrentHashMap[string, v] {
 	chm, _ := NewStringWithCap[v](defaultCapacity)
 	return chm
+}
+
+// NewWithFuncs returns ConcurrentHashMap with the given funcs and default capacity.
+func NewWithFuncs[k, v any](hf HashFunc[k], ef EqualsFunc[k]) (ConcurrentHashMap[k, v], error) {
+	return NewWithCapAndFuncs[k, v](defaultCapacity, hf, ef)
 }
 
 // NewWithCap returns ConcurrentHashMap with given capacity.
@@ -69,6 +71,20 @@ func NewWithCap[k Hasher, v any](capacity int) (chm ConcurrentHashMap[k, v], err
 		return k1.Equals(k2)
 	}
 	chm, err = NewWithCapAndFuncs[k, v](capacity, hf, ef)
+	return
+}
+
+// NewStringWithCap returns string type key ConcurrentHashMap with given capacity.
+func NewStringWithCap[v any](capacity int) (chm ConcurrentHashMap[string, v], err error) {
+	hf := func(key string) uint32 {
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(key))
+		return h.Sum32()
+	}
+	ef := func(k1, k2 string) bool {
+		return k1 == k2
+	}
+	chm, err = NewWithCapAndFuncs[string, v](capacity, hf, ef)
 	return
 }
 
@@ -89,20 +105,6 @@ func NewWithCapAndFuncs[k, v any](capacity int, hf HashFunc[k], ef EqualsFunc[k]
 	}
 	chm.hf = hf
 	chm.ef = ef
-	return
-}
-
-// NewStringWithCap returns string type key ConcurrentHashMap with given capacity.
-func NewStringWithCap[v any](capacity int) (chm ConcurrentHashMap[string, v], err error) {
-	hf := func(key string) uint32 {
-		h := fnv.New32a()
-		_, _ = h.Write([]byte(key))
-		return h.Sum32()
-	}
-	ef := func(k1, k2 string) bool {
-		return k1 == k2
-	}
-	chm, err = NewWithCapAndFuncs[string, v](capacity, hf, ef)
 	return
 }
 
@@ -208,14 +210,14 @@ func (b *bucket[k, v]) put(h uint32, key k, val v, ef EqualsFunc[k]) {
 		return
 	}
 	if b.tree {
-		if treePut(b.node, nn) {
+		if treePut(b.node, nn, ef) {
 			b.size++
 		}
 	} else {
-		if listPut(b.node, nn) {
+		if listPut(b.node, nn, ef) {
 			b.size++
 		}
-		if b.size >= treeThreshold {
+		if b.size >= treeifyThreshold {
 			r := treeify(b.node)
 			b.node = r
 			b.tree = true
@@ -369,10 +371,10 @@ func treeRemove[k, v any](r *node[k, v], h uint32, key k, ef EqualsFunc[k]) (*no
 	}
 }
 
-func listPut[k, v any](hn *node[k, v], nn *node[k, v]) bool {
+func listPut[k, v any](hn *node[k, v], nn *node[k, v], ef EqualsFunc[k]) bool {
 	var pn *node[k, v]
 	for hn != nil {
-		if hn.hash == nn.hash && &hn.key == &nn.key {
+		if hn.hash == nn.hash && ef(hn.key, nn.key) {
 			hn.value = nn.value
 			return false
 		}
@@ -386,10 +388,10 @@ func listPut[k, v any](hn *node[k, v], nn *node[k, v]) bool {
 	return false
 }
 
-func treePut[k, v any](rn *node[k, v], nn *node[k, v]) bool {
+func treePut[k, v any](rn *node[k, v], nn *node[k, v], ef EqualsFunc[k]) bool {
 	var pn *node[k, v]
 	for rn != nil {
-		if rn.hash == nn.hash && &rn.key == &nn.key {
+		if rn.hash == nn.hash && ef(rn.key, nn.key) {
 			rn.value = nn.value
 			return false
 		}

@@ -22,32 +22,92 @@ func TestNewString(t *testing.T) {
 }
 
 func TestNewWithFuncs(t *testing.T) {
-	_, _ = NewWithFuncs[int, int](
-		func(key int) uint32 {
-			return uint32(key)
-		},
-		func(k1, k2 int) bool {
-			return k1 == k2
-		},
-	)
-}
+	hf := func(key int) uint32 {
+		return uint32(key)
+	}
+	ef := func(k1, k2 int) bool {
+		return k1 == k2
+	}
 
-func TestNewWithCap_PositiveCapacity(t *testing.T) {
-	_, err := NewWithCap[Hasher, int](32)
+	_, err := NewWithFuncs[int, int](hf, ef)
 	if err != nil {
 		t.FailNow()
 	}
-}
 
-func TestNewWithCap_ZeroCapacity(t *testing.T) {
-	_, err := NewWithCap[Hasher, int](0)
+	_, err = NewWithFuncs[int, int](nil, ef)
+	if err == nil {
+		t.FailNow()
+	}
+
+	_, err = NewWithFuncs[int, int](hf, nil)
 	if err == nil {
 		t.FailNow()
 	}
 }
 
-func TestNewWithCap_NegativeCapacity(t *testing.T) {
-	_, err := NewWithCap[Hasher, int](-1)
+func TestNewWithCap(t *testing.T) {
+	_, err := NewWithCap[Hasher, int](32)
+	if err != nil {
+		t.FailNow()
+	}
+
+	_, err = NewWithCap[Hasher, int](0)
+	if err == nil {
+		t.FailNow()
+	}
+
+	_, err = NewWithCap[Hasher, int](-1)
+	if err == nil {
+		t.FailNow()
+	}
+}
+
+func TestNewStringWithCap(t *testing.T) {
+	_, err := NewStringWithCap[int](32)
+	if err != nil {
+		t.FailNow()
+	}
+
+	_, err = NewStringWithCap[int](0)
+	if err == nil {
+		t.FailNow()
+	}
+
+	_, err = NewStringWithCap[int](-1)
+	if err == nil {
+		t.FailNow()
+	}
+}
+
+func TestNewWithCapAndFuncs(t *testing.T) {
+	hf := func(key int) uint32 {
+		return uint32(key)
+	}
+	ef := func(k1, k2 int) bool {
+		return k1 == k2
+	}
+
+	_, err := NewWithCapAndFuncs[int, int](32, hf, ef)
+	if err != nil {
+		t.FailNow()
+	}
+
+	_, err = NewWithCapAndFuncs[int, int](0, hf, ef)
+	if err == nil {
+		t.FailNow()
+	}
+
+	_, err = NewWithCapAndFuncs[int, int](-1, hf, ef)
+	if err == nil {
+		t.FailNow()
+	}
+
+	_, err = NewWithCapAndFuncs[int, int](32, nil, ef)
+	if err == nil {
+		t.FailNow()
+	}
+
+	_, err = NewWithCapAndFuncs[int, int](32, hf, nil)
 	if err == nil {
 		t.FailNow()
 	}
