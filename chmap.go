@@ -130,7 +130,7 @@ func (m *ConcurrentHashMap[k, v]) Get(key k) (v, bool) {
 	n := b.get(h, key, m.hashFunc.ef)
 	b.RUnlock()
 	if n == nil {
-		return nil, false
+		return *new(v), false
 	}
 	return n.value, true
 }

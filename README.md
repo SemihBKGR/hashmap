@@ -15,7 +15,7 @@ go get github.com/semihbkgr/chmap@latest
 string type key map example
 
 ```go
-m:=NewString[int]()
+m := NewString[int]()
 
 m.Put("nine", 9)
 
